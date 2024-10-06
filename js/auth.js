@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, query, where, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
-
 
 // Firebase configuration
 const firebaseConfig = {
@@ -22,73 +21,93 @@ function displayMessage(message) {
   messageArea.innerText = message;
 }
 
-document.getElementById('go-to-signup').addEventListener('click', () => {
-  document.getElementById('auth-title').innerText = 'Sign Up for ZyloChat';
-  document.getElementById('signup-fields').style.display = 'block';
-  document.getElementById('login-fields').style.display = 'none';
-});
+// Wait for the DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('go-to-signup').addEventListener('click', () => {
+    document.getElementById('auth-title').innerText = 'Sign Up for ZyloChat';
+    document.getElementById('signup-fields').style.display = 'block';
+    document.getElementById('login-fields').style.display = 'none';
+  });
 
-document.getElementById('go-to-login').addEventListener('click', () => {
-  document.getElementById('auth-title').innerText = 'Login to ZyloChat';
-  document.getElementById('signup-fields').style.display = 'none';
-  document.getElementById('login-fields').style.display = 'block';
-});
+  document.getElementById('go-to-login').addEventListener('click', () => {
+    document.getElementById('auth-title').innerText = 'Login to ZyloChat';
+    document.getElementById('signup-fields').style.display = 'none';
+    document.getElementById('login-fields').style.display = 'block';
+  });
 
-document.getElementById('signup-btn').addEventListener('click', async () => {
-  const email = document.getElementById('signup-email').value;
-  const password = document.getElementById('signup-password').value;
-  const nickname = document.getElementById('signup-nickname').value;
+  document.getElementById('signup-btn').addEventListener('click', async () => {
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const nickname = document.getElementById('signup-nickname').value;
 
-  if (email && password && nickname) {
-    try {
-      const nicknameQuery = query(collection(db, "users"), where("nickname", "==", nickname));
-      const querySnapshot = await getDocs(nicknameQuery);
+    if (email && password && nickname) {
+      try {
+        const nicknameQuery = query(collection(db, "users"), where("nickname", "==", nickname));
+        const querySnapshot = await getDocs(nicknameQuery);
 
-      if (!querySnapshot.empty) {
-        displayMessage("This nickname is already in use. Please choose another one.");
-        return; 
+        if (!querySnapshot.empty) {
+          displayMessage("This nickname is already in use. Please choose another one.");
+          return; 
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await setDoc(doc(db, "users", user.uid), { nickname: nickname });
+
+        await sendEmailVerification(user);
+        displayMessage("Verification email sent! Please check your inbox.");
+
+        await signOut(auth);
+      } catch (error) {
+        console.error("Error signing up:", error.message);
+        displayMessage("Error signing up: " + error.message);
       }
+    } else {
+      displayMessage("Please fill out all fields.");
+    }
+  });
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      await setDoc(doc(db, "users", user.uid), { nickname: nickname });
+      if (!user.emailVerified) {
+        displayMessage("Please verify your email address before logging in.");
+        await signOut(auth); 
+        return;
+      }
 
-      await sendEmailVerification(user);
-      displayMessage("Verification email sent! Please check your inbox.");
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const nickname = userDoc.exists() ? userDoc.data().nickname : user.email;
 
-      await signOut(auth);
+      displayMessage(`Welcome back, ${nickname}!`);
+
+      window.location.href = "chat.html"; 
     } catch (error) {
-      console.error("Error signing up:", error.message);
-      displayMessage("Error signing up: " + error.message);
+      console.error("Error logging in:", error.message);
+      displayMessage("Error logging in: " + error.message);
     }
-  } else {
-    displayMessage("Please fill out all fields.");
-  }
-});
+  });
 
-document.getElementById('login-btn').addEventListener('click', async () => {
-  const email = document.getElementById('login-email').value;
-  const password = document.getElementById('login-password').value;
+  // Forgot Password
+  document.getElementById('forgot-password').addEventListener('click', async () => {
+    const email = prompt("Please enter your email address for password reset:");
 
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    if (!user.emailVerified) {
-      displayMessage("Please verify your email address before logging in.");
-      await signOut(auth); 
-      return;
+    if (email) {
+      try {
+        await sendPasswordResetEmail(auth, email);
+        displayMessage("Password reset email sent! Please check your inbox.");
+      } catch (error) {
+        console.error("Error sending password reset email:", error.message);
+        displayMessage("Error: " + error.message);
+      }
+    } else {
+      displayMessage("Email is required for password reset.");
     }
-
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    const nickname = userDoc.exists() ? userDoc.data().nickname : user.email;
-
-    displayMessage(`Welcome back, ${nickname}!`);
-
-    window.location.href = "chat.html"; 
-  } catch (error) {
-    console.error("Error logging in:", error.message);
-    displayMessage("Error logging in: " + error.message);
-  }
+  });
 });

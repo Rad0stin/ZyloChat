@@ -1,4 +1,3 @@
-// chat.js
 import { collection, query, getDocs, addDoc, onSnapshot, doc, getDoc, orderBy, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 import { db } from './firebase.js';
 import { getConversationId } from './utils.js';
@@ -118,6 +117,12 @@ export const initChatListeners = () => {
     document.getElementById('file-input').click();
   });
   document.getElementById('file-input').addEventListener('change', handleFileUpload);
+  document.getElementById('message-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault(); 
+      sendMessage();          
+    }
+  });
 };
 
 const sendMessage = async () => {
